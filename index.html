@@ -1,0 +1,1093 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <link rel="icon" href="https://em-content.zobj.net/source/microsoft-teams/363/leafy-green_1f96c.png" />
+  <title>FreshChain</title>
+
+  <!-- ethers v6 -->
+  <script src="https://cdn.jsdelivr.net/npm/ethers@6.10.0/dist/ethers.umd.min.js"></script>
+
+  <!-- QR generator -->
+  <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f4f6f8;
+      margin: 0;
+      padding: 20px;
+    }
+    h1 { text-align: center; }
+    .container { max-width: 750px; margin: auto; }
+    .card {
+      background: white;
+      padding: 20px;
+      margin-top: 20px;
+      border-radius: 8px;
+      box-shadow: 0 2px 6px rgba(0,0,0,.1);
+    }
+    input, select, button {
+      width: 100%;
+      padding: 8px;
+      margin-top: 8px;
+    }
+    button {
+      background: #2c7be5;
+      color: white;
+      border: none;
+      cursor: pointer;
+    }
+    button:hover { background: #1a68d1; }
+    .hidden { display: none; }
+    .note {
+      background: #eef3ff;
+      padding: 10px;
+      border-left: 4px solid #2c7be5;
+      margin-bottom: 10px;
+      font-size: 14px;
+    }
+    pre {
+      background: #111;
+      color: #0f0;
+      padding: 10px;
+      font-size: 12px;
+      overflow-x: auto;
+      margin-top: 10px;
+    }
+    #qr, #customerQR {
+      margin-top: 10px;
+      text-align: center;
+    }
+  </style>
+</head>
+
+<body>
+
+<h1>🥬 FreshChain – Blockchain Supply Chain</h1>
+
+<div class="container">
+
+  <button onclick="connectWallet()">Connect MetaMask</button>
+  <p id="account"></p>
+
+  <!-- ROLE SELECT -->
+  <div class="card hidden" id="roleCard">
+    <h3>Select Role</h3>
+    <select id="role" onchange="renderRole()">
+      <option value="">-- Select Role --</option>
+      <option value="admin">Admin</option>
+      <option value="producer">Producer</option>
+      <option value="transporter">Transporter</option>
+      <option value="distributor">Distributor</option>
+      <option value="retailer">Retailer</option>
+      <option value="customer">Customer</option>
+    </select>
+  </div>
+
+  <!-- ADMIN -->
+  <div class="card hidden" id="admin">
+    <h3>👑 Admin</h3>
+    <div class="note">
+      Registers actors in the supply chain.  
+      Only the contract owner can perform these actions.  
+      After connecting your wallet, you can also verify any address's roles.
+    </div>
+    <p id="adminStatus"></p>
+    <input id="adminAddr" placeholder="Actor Ethereum Address">
+    <button onclick="register('producer')">Register Producer</button>
+    <button onclick="register('transporter')">Register Transporter</button>
+    <button onclick="register('distributor')">Register Distributor</button>
+    <button onclick="register('retailer')">Register Retailer</button>
+    <button onclick="checkRolesFromAdmin()">Check Roles for Address</button>
+    <pre id="adminRoles"></pre>
+  </div>
+
+  <!-- PRODUCER -->
+  <div class="card hidden" id="producer">
+    <h3>🌱 Producer</h3>
+    <div class="note">
+      Creates new batches and becomes the initial owner.
+      Batch IDs must be unique.
+    </div>
+    <input id="pBatchId" placeholder="Batch ID (number)">
+    <input id="pName" placeholder="Product Name">
+    <input id="pQty" placeholder="Quantity">
+    <button onclick="createBatch()">Create Batch</button>
+    <div id="qr"></div>
+  </div>
+
+  <!-- TRANSPORTER -->
+  <div class="card hidden" id="transporter">
+    <h3>🚚 Transporter</h3>
+    <div class="note">
+      Logs environmental data during transportation.
+      Temperature and humidity are validated on-chain.
+    </div>
+    <input id="tBatchId" placeholder="Batch ID">
+    <input id="tTemp" placeholder="Temperature (°C)">
+    <input id="tHum" placeholder="Humidity">
+    <input id="tLoc" placeholder="Location">
+    <button onclick="addSensor()">Add Sensor Data</button>
+  </div>
+
+  <!-- DISTRIBUTOR -->
+  <div class="card hidden" id="distributor">
+    <h3>🏭 Distributor</h3>
+    <div class="note">
+      Transfers batch ownership to the next actor.
+      Only the current owner can perform this action.
+    </div>
+    <input id="dBatchId" placeholder="Batch ID">
+    <input id="dOwner" placeholder="New Owner (Retailer Address)">
+    <button onclick="transfer()">Transfer Ownership</button>
+  </div>
+
+  <!-- RETAILER -->
+  <div class="card hidden" id="retailer">
+    <h3>🏪 Retailer</h3>
+    <div class="note">
+      Performs final inspection and confirms product arrival.
+    </div>
+    <input id="rBatchId" placeholder="Batch ID">
+    <button onclick="arrive(true)">Inspection Passed</button>
+    <button onclick="arrive(false)">Inspection Failed</button>
+  </div>
+
+  <!-- CUSTOMER -->
+  <div class="card hidden" id="customer">
+    <h3>👤 Customer</h3>
+    <div class="note">
+      Customers can verify the full history of a product batch.
+      No blockchain transaction is required.  
+      You can also verify that the producer, transporter, distributor, or retailer
+      involved are registered in the official FreshChain contract.
+    </div>
+
+    <input id="cBatchId" placeholder="Batch ID">
+
+    <button onclick="generateCustomerQR()">Generate QR Code</button>
+    <button onclick="viewHistory()">View Batch History</button>
+
+    <div id="customerQR"></div>
+    <pre id="history"></pre>
+
+    <h4>Verify an Actor Address</h4>
+    <input id="verifyAddr" placeholder="Actor Ethereum Address">
+    <button onclick="verifyActor()">Verify Actor Role</button>
+    <pre id="verifyResult"></pre>
+  </div>
+
+</div>
+
+<script>
+const CONTRACT_ADDRESS = "0x0F7A6dE8d6D2D0d683225Da4a8EDF94b1dcE6360";
+const ABI = [
+	{
+		"inputs": [
+			{
+				"internalType": "uint256",
+				"name": "batchId",
+				"type": "uint256"
+			},
+			{
+				"internalType": "int256",
+				"name": "temperature",
+				"type": "int256"
+			},
+			{
+				"internalType": "int256",
+				"name": "humidity",
+				"type": "int256"
+			},
+			{
+				"internalType": "string",
+				"name": "location",
+				"type": "string"
+			}
+		],
+		"name": "addSensorData",
+		"outputs": [],
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
+		"inputs": [],
+		"stateMutability": "nonpayable",
+		"type": "constructor"
+	},
+	{
+		"anonymous": false,
+		"inputs": [
+			{
+				"indexed": false,
+				"internalType": "uint256",
+				"name": "batchId",
+				"type": "uint256"
+			},
+			{
+				"indexed": false,
+				"internalType": "bool",
+				"name": "passed",
+				"type": "bool"
+			}
+		],
+		"name": "BatchArrived",
+		"type": "event"
+	},
+	{
+		"anonymous": false,
+		"inputs": [
+			{
+				"indexed": false,
+				"internalType": "uint256",
+				"name": "batchId",
+				"type": "uint256"
+			},
+			{
+				"indexed": false,
+				"internalType": "string",
+				"name": "product",
+				"type": "string"
+			},
+			{
+				"indexed": false,
+				"internalType": "uint256",
+				"name": "quantity",
+				"type": "uint256"
+			}
+		],
+		"name": "BatchCreated",
+		"type": "event"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "uint256",
+				"name": "batchId",
+				"type": "uint256"
+			},
+			{
+				"internalType": "string",
+				"name": "productName",
+				"type": "string"
+			},
+			{
+				"internalType": "uint256",
+				"name": "quantity",
+				"type": "uint256"
+			}
+		],
+		"name": "createBatch",
+		"outputs": [],
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "uint256",
+				"name": "batchId",
+				"type": "uint256"
+			},
+			{
+				"internalType": "bool",
+				"name": "passedInspection",
+				"type": "bool"
+			}
+		],
+		"name": "markAsArrived",
+		"outputs": [],
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
+		"anonymous": false,
+		"inputs": [
+			{
+				"indexed": false,
+				"internalType": "uint256",
+				"name": "batchId",
+				"type": "uint256"
+			},
+			{
+				"indexed": false,
+				"internalType": "address",
+				"name": "from",
+				"type": "address"
+			},
+			{
+				"indexed": false,
+				"internalType": "address",
+				"name": "to",
+				"type": "address"
+			}
+		],
+		"name": "OwnershipTransferred",
+		"type": "event"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "address",
+				"name": "d",
+				"type": "address"
+			}
+		],
+		"name": "registerDistributor",
+		"outputs": [],
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "address",
+				"name": "p",
+				"type": "address"
+			}
+		],
+		"name": "registerProducer",
+		"outputs": [],
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "address",
+				"name": "r",
+				"type": "address"
+			}
+		],
+		"name": "registerRetailer",
+		"outputs": [],
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "address",
+				"name": "t",
+				"type": "address"
+			}
+		],
+		"name": "registerTransporter",
+		"outputs": [],
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
+		"anonymous": false,
+		"inputs": [
+			{
+				"indexed": false,
+				"internalType": "uint256",
+				"name": "batchId",
+				"type": "uint256"
+			},
+			{
+				"indexed": false,
+				"internalType": "int256",
+				"name": "temp",
+				"type": "int256"
+			},
+			{
+				"indexed": false,
+				"internalType": "int256",
+				"name": "humidity",
+				"type": "int256"
+			},
+			{
+				"indexed": false,
+				"internalType": "string",
+				"name": "location",
+				"type": "string"
+			}
+		],
+		"name": "SensorLogged",
+		"type": "event"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "uint256",
+				"name": "batchId",
+				"type": "uint256"
+			},
+			{
+				"internalType": "address",
+				"name": "newOwner",
+				"type": "address"
+			}
+		],
+		"name": "transferOwnership",
+		"outputs": [],
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "uint256",
+				"name": "",
+				"type": "uint256"
+			}
+		],
+		"name": "batches",
+		"outputs": [
+			{
+				"internalType": "uint256",
+				"name": "batchId",
+				"type": "uint256"
+			},
+			{
+				"internalType": "string",
+				"name": "productName",
+				"type": "string"
+			},
+			{
+				"internalType": "uint256",
+				"name": "quantity",
+				"type": "uint256"
+			},
+			{
+				"internalType": "address",
+				"name": "currentOwner",
+				"type": "address"
+			},
+			{
+				"internalType": "bool",
+				"name": "arrived",
+				"type": "bool"
+			},
+			{
+				"internalType": "bool",
+				"name": "passedInspection",
+				"type": "bool"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "address",
+				"name": "",
+				"type": "address"
+			}
+		],
+		"name": "distributors",
+		"outputs": [
+			{
+				"internalType": "bool",
+				"name": "",
+				"type": "bool"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "uint256",
+				"name": "batchId",
+				"type": "uint256"
+			}
+		],
+		"name": "getBatchHistory",
+		"outputs": [
+			{
+				"components": [
+					{
+						"internalType": "uint256",
+						"name": "batchId",
+						"type": "uint256"
+					},
+					{
+						"internalType": "string",
+						"name": "productName",
+						"type": "string"
+					},
+					{
+						"internalType": "uint256",
+						"name": "quantity",
+						"type": "uint256"
+					},
+					{
+						"internalType": "address",
+						"name": "currentOwner",
+						"type": "address"
+					},
+					{
+						"internalType": "bool",
+						"name": "arrived",
+						"type": "bool"
+					},
+					{
+						"internalType": "bool",
+						"name": "passedInspection",
+						"type": "bool"
+					}
+				],
+				"internalType": "struct FreshChain.Batch",
+				"name": "",
+				"type": "tuple"
+			},
+			{
+				"components": [
+					{
+						"internalType": "int256",
+						"name": "temperature",
+						"type": "int256"
+					},
+					{
+						"internalType": "int256",
+						"name": "humidity",
+						"type": "int256"
+					},
+					{
+						"internalType": "string",
+						"name": "location",
+						"type": "string"
+					},
+					{
+						"internalType": "uint256",
+						"name": "timestamp",
+						"type": "uint256"
+					}
+				],
+				"internalType": "struct FreshChain.SensorData[]",
+				"name": "",
+				"type": "tuple[]"
+			},
+			{
+				"components": [
+					{
+						"internalType": "address",
+						"name": "owner",
+						"type": "address"
+					},
+					{
+						"internalType": "uint256",
+						"name": "timestamp",
+						"type": "uint256"
+					}
+				],
+				"internalType": "struct FreshChain.Ownership[]",
+				"name": "",
+				"type": "tuple[]"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [],
+		"name": "owner",
+		"outputs": [
+			{
+				"internalType": "address",
+				"name": "",
+				"type": "address"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "uint256",
+				"name": "",
+				"type": "uint256"
+			},
+			{
+				"internalType": "uint256",
+				"name": "",
+				"type": "uint256"
+			}
+		],
+		"name": "ownershipHistory",
+		"outputs": [
+			{
+				"internalType": "address",
+				"name": "owner",
+				"type": "address"
+			},
+			{
+				"internalType": "uint256",
+				"name": "timestamp",
+				"type": "uint256"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "address",
+				"name": "",
+				"type": "address"
+			}
+		],
+		"name": "producers",
+		"outputs": [
+			{
+				"internalType": "bool",
+				"name": "",
+				"type": "bool"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "address",
+				"name": "",
+				"type": "address"
+			}
+		],
+		"name": "retailers",
+		"outputs": [
+			{
+				"internalType": "bool",
+				"name": "",
+				"type": "bool"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "uint256",
+				"name": "",
+				"type": "uint256"
+			},
+			{
+				"internalType": "uint256",
+				"name": "",
+				"type": "uint256"
+			}
+		],
+		"name": "sensorLogs",
+		"outputs": [
+			{
+				"internalType": "int256",
+				"name": "temperature",
+				"type": "int256"
+			},
+			{
+				"internalType": "int256",
+				"name": "humidity",
+				"type": "int256"
+			},
+			{
+				"internalType": "string",
+				"name": "location",
+				"type": "string"
+			},
+			{
+				"internalType": "uint256",
+				"name": "timestamp",
+				"type": "uint256"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "address",
+				"name": "",
+				"type": "address"
+			}
+		],
+		"name": "transporters",
+		"outputs": [
+			{
+				"internalType": "bool",
+				"name": "",
+				"type": "bool"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	}
+];
+</script>
+
+<script>
+let provider, signer, contract;
+
+// Get a read-only contract instance (no wallet interaction required)
+async function getReadOnlyContract() {
+  if (!window.ethereum) {
+    throw new Error("MetaMask (or compatible provider) is required.");
+  }
+
+  if (!provider) {
+    provider = new ethers.BrowserProvider(window.ethereum);
+  }
+
+  // Use a provider for read-only operations; signer will be used only when needed
+  if (!contract) {
+    contract = new ethers.Contract(CONTRACT_ADDRESS, ABI, provider);
+  }
+
+  return contract;
+}
+
+async function connectWallet() {
+  if (!window.ethereum) return alert("Install MetaMask");
+
+  provider = new ethers.BrowserProvider(window.ethereum);
+  signer = await provider.getSigner();
+  contract = new ethers.Contract(CONTRACT_ADDRESS, ABI, signer);
+
+  const addr = await signer.getAddress();
+  document.getElementById("account").innerText =
+    "Connected: " + addr;
+
+  // Show whether the connected account is the contract owner (admin)
+  try {
+    const c = await getReadOnlyContract();
+    const ownerAddr = await c.owner();
+    const isAdmin = ownerAddr.toLowerCase() === addr.toLowerCase();
+    document.getElementById("adminStatus").innerText =
+      isAdmin
+        ? "You are the contract owner (Admin)."
+        : "You are NOT the contract owner. Admin actions will revert.";
+  } catch (e) {
+    console.error("Error checking admin status", e);
+    document.getElementById("adminStatus").innerText =
+      "Could not verify admin status (check network and contract address).";
+  }
+
+  document.getElementById("roleCard").classList.remove("hidden");
+}
+
+function renderRole() {
+  ["admin","producer","transporter","distributor","retailer","customer"]
+    .forEach(r => document.getElementById(r).classList.add("hidden"));
+
+  const role = document.getElementById("role").value;
+  if (role) document.getElementById(role).classList.remove("hidden");
+}
+
+/* ADMIN */
+async function register(type) {
+  if (!contract || !signer) {
+    return alert("Please connect your wallet first.");
+  }
+
+  const addr = adminAddr.value.trim();
+  if (!ethers.isAddress(addr)) return alert("Invalid address");
+
+  if (type === "producer") await contract.registerProducer(addr);
+  if (type === "transporter") await contract.registerTransporter(addr);
+  if (type === "distributor") await contract.registerDistributor(addr);
+  if (type === "retailer") await contract.registerRetailer(addr);
+
+  alert("Role registered successfully on-chain.");
+}
+
+// From the admin card: check which roles an address has
+async function checkRolesFromAdmin() {
+  const addr = adminAddr.value.trim();
+  const out = document.getElementById("adminRoles");
+
+  if (!ethers.isAddress(addr)) {
+    out.innerText = "Please enter a valid Ethereum address.";
+    return;
+  }
+
+  try {
+    const c = await getReadOnlyContract();
+    const [isProd, isTrans, isDist, isRet] = await Promise.all([
+      c.producers(addr),
+      c.transporters(addr),
+      c.distributors(addr),
+      c.retailers(addr)
+    ]);
+
+    if (!isProd && !isTrans && !isDist && !isRet) {
+      out.innerText = "Address has no registered role.";
+      return;
+    }
+
+    const roles = [];
+    if (isProd) roles.push("Producer");
+    if (isTrans) roles.push("Transporter");
+    if (isDist) roles.push("Distributor");
+    if (isRet) roles.push("Retailer");
+
+    out.innerText = `Registered roles for ${addr}:\n - ${roles.join("\n - ")}`;
+  } catch (e) {
+    console.error("Error checking roles from admin view", e);
+    out.innerText = "Error reading roles from contract. Check network/connection.";
+  }
+}
+
+/* PRODUCER */
+async function createBatch() {
+  if (!contract || !signer) {
+    return alert("Please connect your wallet first.");
+  }
+
+  const idStr = pBatchId.value.trim();
+  if (!idStr || isNaN(Number(idStr))) {
+    return alert("Please enter a valid numeric Batch ID.");
+  }
+
+  const qtyStr = pQty.value.trim();
+  if (!qtyStr || isNaN(Number(qtyStr))) {
+    return alert("Please enter a valid numeric quantity.");
+  }
+
+  const id = BigInt(idStr);
+  const qty = BigInt(qtyStr);
+
+  await contract.createBatch(id, pName.value, qty);
+
+  qr.innerHTML = "";
+  const url = `${location.origin}${location.pathname}?batchId=${idStr}`;
+  new QRCode(qr, { text: url, width: 200, height: 200 });
+}
+
+/* TRANSPORTER */
+async function addSensor() {
+  if (!contract || !signer) {
+    return alert("Please connect your wallet first.");
+  }
+
+  const idStr = tBatchId.value.trim();
+  if (!idStr || isNaN(Number(idStr))) {
+    return alert("Please enter a valid numeric Batch ID.");
+  }
+
+  const tempStr = tTemp.value.trim();
+  const humStr = tHum.value.trim();
+  if (tempStr === "" || humStr === "" || isNaN(Number(tempStr)) || isNaN(Number(humStr))) {
+    return alert("Please enter valid numeric temperature and humidity.");
+  }
+
+  const id = BigInt(idStr);
+  const temp = BigInt(tempStr);
+  const hum = BigInt(humStr);
+
+  await contract.addSensorData(
+    id,
+    temp,
+    hum,
+    tLoc.value
+  );
+}
+
+/* DISTRIBUTOR */
+async function transfer() {
+  if (!contract || !signer) {
+    return alert("Please connect your wallet first.");
+  }
+
+  const idStr = dBatchId.value.trim();
+  if (!idStr || isNaN(Number(idStr))) {
+    return alert("Please enter a valid numeric Batch ID.");
+  }
+
+  if (!ethers.isAddress(dOwner.value.trim())) return alert("Invalid address");
+
+  const id = BigInt(idStr);
+  await contract.transferOwnership(id, dOwner.value.trim());
+}
+
+/* RETAILER */
+async function arrive(passed) {
+  if (!contract || !signer) {
+    return alert("Please connect your wallet first.");
+  }
+
+  const idStr = rBatchId.value.trim();
+  if (!idStr || isNaN(Number(idStr))) {
+    return alert("Please enter a valid numeric Batch ID.");
+  }
+
+  const id = BigInt(idStr);
+  await contract.markAsArrived(id, passed);
+}
+
+/* CUSTOMER */
+function generateCustomerQR() {
+  const id = cBatchId.value.trim();
+  if (!id || isNaN(Number(id))) return alert("Enter a valid numeric Batch ID");
+
+  customerQR.innerHTML = "";
+  const url = `${location.origin}${location.pathname}?batchId=${id}`;
+  new QRCode(customerQR, { text: url, width: 200, height: 200 });
+}
+
+async function viewHistory() {
+  const batchIdStr = cBatchId.value.trim();
+  const historyEl = document.getElementById("history");
+
+  if (!batchIdStr) {
+    historyEl.innerHTML = "Please enter a Batch ID first.";
+    return;
+  }
+
+  if (isNaN(Number(batchIdStr))) {
+    historyEl.innerHTML = "Batch ID must be a number.";
+    return;
+  }
+
+  try {
+    const c = await getReadOnlyContract();
+    const batchId = BigInt(batchIdStr);
+
+    const [batch, sensors, owners] = await c.getBatchHistory(batchId);
+
+    console.log(batch, sensors, owners);
+
+    // Determine the current owner's registered role (if any)
+    let currentOwnerRole = "Unregistered / Unknown";
+    try {
+      const [isProd, isTrans, isDist, isRet] = await Promise.all([
+        c.producers(batch.currentOwner),
+        c.transporters(batch.currentOwner),
+        c.distributors(batch.currentOwner),
+        c.retailers(batch.currentOwner)
+      ]);
+
+      const roles = [];
+      if (isProd) roles.push("Producer");
+      if (isTrans) roles.push("Transporter");
+      if (isDist) roles.push("Distributor");
+      if (isRet) roles.push("Retailer");
+
+      if (roles.length > 0) {
+        currentOwnerRole = roles.join(", ");
+      }
+    } catch (innerErr) {
+      console.error("Error looking up current owner role", innerErr);
+    }
+
+    let html = `
+      <h4> Product Information</h4>
+      <ul>
+        <li><b>Batch ID:</b> ${batch.batchId}</li>
+        <li><b>Product:</b> ${batch.productName}</li>
+        <li><b>Quantity:</b> ${batch.quantity}</li>
+        <li><b>Current Owner:</b> ${batch.currentOwner}</li>
+        <li><b>Current Owner Role:</b> ${currentOwnerRole}</li>
+        <li><b>Arrived at Retailer:</b> ${batch.arrived}</li>
+        <li><b>Passed Inspection:</b> ${batch.passedInspection}</li>
+      </ul>
+
+      <h4> Ownership History</h4>
+      <ul>
+        ${owners.map(o => `
+          <li>
+            Owner: ${o.owner}<br>
+            Time: ${new Date(Number(o.timestamp) * 1000).toLocaleString()}
+          </li>
+        `).join("")}
+      </ul>
+
+      <h4> Environmental Logs</h4>
+      <ul>
+        ${sensors.map(s => `
+          <li>
+            Temp: ${s.temperature} °C |
+            Humidity: ${s.humidity} |
+            Location: ${s.location}<br>
+            Time: ${new Date(Number(s.timestamp) * 1000).toLocaleString()}
+          </li>
+        `).join("")}
+      </ul>
+    `;
+
+    historyEl.innerHTML = html;
+  } catch (err) {
+    console.error("Error fetching batch history:", err);
+
+    if (err.code === "BAD_DATA") {
+      historyEl.innerHTML =
+        "Could not read data for this batch. Make sure you are on the correct network and the contract address matches the deployed contract with getBatchHistory(uint256).";
+    } else if (err.code === "CALL_EXCEPTION") {
+      historyEl.innerHTML =
+        "The contract reverted while fetching history. The batch ID may not exist or the contract logic rejected the request.";
+    } else {
+      historyEl.innerHTML = `Unexpected error while fetching history: ${err.message || err}`;
+    }
+  }
+}
+
+// Customer-side: verify a single actor address against all role mappings
+async function verifyActor() {
+  const addr = verifyAddr.value.trim();
+  const out = document.getElementById("verifyResult");
+
+  if (!ethers.isAddress(addr)) {
+    out.innerText = "Please enter a valid Ethereum address.";
+    return;
+  }
+
+  try {
+    const c = await getReadOnlyContract();
+    const [isProd, isTrans, isDist, isRet] = await Promise.all([
+      c.producers(addr),
+      c.transporters(addr),
+      c.distributors(addr),
+      c.retailers(addr)
+    ]);
+
+    if (!isProd && !isTrans && !isDist && !isRet) {
+      out.innerText =
+        `Address ${addr} is not registered as a Producer, Transporter, Distributor, or Retailer in this contract.`;
+      return;
+    }
+
+    const roles = [];
+    if (isProd) roles.push("Producer");
+    if (isTrans) roles.push("Transporter");
+    if (isDist) roles.push("Distributor");
+    if (isRet) roles.push("Retailer");
+
+    out.innerText =
+      `Address ${addr} is a registered: ${roles.join(", ")} (according to on-chain role mappings).`;
+  } catch (e) {
+    console.error("Error verifying actor", e);
+    out.innerText = "Error verifying actor on-chain. Check network and contract address.";
+  }
+}
+
+
+/* AUTO LOAD FROM QR */
+window.onload = async () => {
+  const id = new URLSearchParams(location.search).get("batchId");
+  if (!id) return;
+
+  try {
+    cBatchId.value = id;
+    document.getElementById("role").value = "customer";
+    renderRole();
+
+    await viewHistory();
+  } catch (err) {
+    console.error("Error auto-loading history from QR:", err);
+  }
+};
+
+</script>
+
+</body>
+</html>
