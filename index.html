@@ -59,6 +59,49 @@
       margin-top: 10px;
       text-align: center;
     }
+	  /* Batch history card */
+.batch-card {
+  font-family: Arial, sans-serif;
+  font-size: 14px;
+  color: #222;
+}
+
+.section {
+  margin-bottom: 14px;
+}
+
+.section-title {
+  font-weight: 600;
+  font-size: 13px;
+  margin-bottom: 6px;
+  color: #555;
+  text-transform: uppercase;
+}
+
+.info-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.info-table td {
+  padding: 4px 6px;
+}
+
+.info-table td:first-child {
+  color: #666;
+  width: 40%;
+}
+
+.compact-list .row {
+  display: flex;
+  justify-content: space-between;
+  padding: 4px 0;
+  border-bottom: 1px solid #eee;
+}
+
+.compact-list .row:last-child {
+  border-bottom: none;
+}
   </style>
 </head>
 
@@ -981,41 +1024,50 @@ async function viewHistory() {
     }
 
     let html = `
-      <h4> Product Information</h4>
-      <ul>
-        <li><b>Batch ID:</b> ${batch.batchId}</li>
-        <li><b>Product:</b> ${batch.productName}</li>
-        <li><b>Quantity:</b> ${batch.quantity}</li>
-        <li><b>Current Owner:</b> ${batch.currentOwner}</li>
-        <li><b>Current Owner Role:</b> ${currentOwnerRole}</li>
-        <li><b>Arrived at Retailer:</b> ${batch.arrived}</li>
-        <li><b>Passed Inspection:</b> ${batch.passedInspection}</li>
-      </ul>
+	  <div class="batch-card">
+	
+	    <div class="section">
+	      <div class="section-title">Product Info</div>
+	      <table class="info-table">
+	        <tr><td>Batch ID</td><td>${batch.batchId}</td></tr>
+	        <tr><td>Product</td><td>${batch.productName}</td></tr>
+	        <tr><td>Quantity</td><td>${batch.quantity}</td></tr>
+	        <tr><td>Owner</td><td>${batch.currentOwner}</td></tr>
+	        <tr><td>Role</td><td>${currentOwnerRole}</td></tr>
+	        <tr><td>Arrived</td><td>${batch.arrived ? "Yes" : "No"}</td></tr>
+	        <tr><td>Inspection</td><td>${batch.passedInspection ? "Passed" : "Pending"}</td></tr>
+	      </table>
+	    </div>
+	
+	    <div class="section">
+	      <div class="section-title">Ownership History</div>
+	      <div class="compact-list">
+	        ${owners.map(o => `
+	          <div class="row">
+	            <span>${o.owner}</span>
+	            <span>${new Date(Number(o.timestamp) * 1000).toLocaleString()}</span>
+	          </div>
+	        `).join("")}
+	      </div>
+	    </div>
+	
+	    <div class="section">
+	      <div class="section-title">Environmental Logs</div>
+	      <div class="compact-list">
+	        ${sensors.map(s => `
+	          <div class="row">
+	            <span>${s.temperature}°C · ${s.humidity}% · ${s.location}</span>
+	            <span>${new Date(Number(s.timestamp) * 1000).toLocaleString()}</span>
+	          </div>
+	        `).join("")}
+	      </div>
+	    </div>
+	
+	  </div>
+	`;
+	
+	historyEl.innerHTML = html;
 
-      <h4> Ownership History</h4>
-      <ul>
-        ${owners.map(o => `
-          <li>
-            Owner: ${o.owner}<br>
-            Time: ${new Date(Number(o.timestamp) * 1000).toLocaleString()}
-          </li>
-        `).join("")}
-      </ul>
-
-      <h4> Environmental Logs</h4>
-      <ul>
-        ${sensors.map(s => `
-          <li>
-            Temp: ${s.temperature} °C |
-            Humidity: ${s.humidity} |
-            Location: ${s.location}<br>
-            Time: ${new Date(Number(s.timestamp) * 1000).toLocaleString()}
-          </li>
-        `).join("")}
-      </ul>
-    `;
-
-    historyEl.innerHTML = html;
   } catch (err) {
     console.error("Error fetching batch history:", err);
 
